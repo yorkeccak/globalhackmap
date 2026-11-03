@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { GeistMono } from "geist/font/mono";
 import { Hubot_Sans, Martian_Mono, Mona_Sans } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "sonner";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
@@ -76,6 +77,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             className: "!bg-surface !border-hairline-2 !text-ink !rounded-[12px] !text-[13px] !shadow-2xl",
           }}
         />
+        <Analytics />
       </body>
     </html>
   );
