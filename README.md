@@ -1,5 +1,9 @@
 # Global Hack Map
 
+**Try it live: [globalhackmap.vercel.app](https://globalhackmap.vercel.app)**
+
+[![Global Hack Map: live vulnerabilities, exploits and breaches on one globe](docs/screenshot.png)](https://globalhackmap.vercel.app)
+
 Every hack, exploit and breach, live. Every publicly reported breach, ransomware claim, exploited vulnerability, malicious package and connectivity drop on one globe, each with its sources and an honest status. Check whether you are affected, then fix it in one click.
 
 - **Map**: incidents placed at the city named in reporting, the organisation's headquarters, or the country, never more precisely than the sources allow.
