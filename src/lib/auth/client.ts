@@ -3,6 +3,7 @@
 import { create } from "zustand";
 
 import { AUTH_URL, CLIENT_ID, REDIRECT_URI, oauthConfigured } from "@/lib/auth/config";
+import { event, section } from "@/lib/events";
 
 export interface ValyuUser {
   id: string;
@@ -54,6 +55,7 @@ function randomString(): string {
 
 /** Start "Sign in with Valyu" (OAuth 2.1 authorization code + PKCE). */
 export async function startSignIn(returnTo = window.location.pathname + window.location.search) {
+  event("Sign In Start", { from: section() });
   if (!oauthConfigured()) {
     window.open("https://platform.valyu.ai/auth", "_blank", "noopener");
     return;

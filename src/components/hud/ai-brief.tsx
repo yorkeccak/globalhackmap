@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ValyuMark } from "@/components/icons/agents";
 import { startSignIn } from "@/lib/auth/client";
+import { event } from "@/lib/events";
 import { VALYU_PLANS_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { useAccess } from "@/stores/access";
@@ -47,6 +48,7 @@ async function fetchBrief(kind: Kind, id: string): Promise<{ ok: boolean; data: 
       body: JSON.stringify({ kind, id }),
     });
     const data = (await res.json()) as BriefResponse;
+    event("Brief", { kind, status: res.status });
     return { ok: res.ok && Boolean(data.markdown), data };
   } catch {
     return { ok: false, data: { error: "Network error. Try again." } };
