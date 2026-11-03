@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { BrandMark } from "@/components/icons/agents";
 import { useAuth, type ValyuUser } from "@/lib/auth/client";
+import { event } from "@/lib/events";
 
 export default function ValyuCallback() {
   const router = useRouter();
@@ -37,9 +38,13 @@ export default function ValyuCallback() {
       const json = (await res.json()) as { user?: ValyuUser | null; error?: string };
       if (!res.ok) throw new Error(json.error ?? "Sign in failed");
       setUser(json.user ?? null);
+      event("Sign In Done");
       router.replace(stored.returnTo?.startsWith("/") ? stored.returnTo : "/");
     };
-    complete().catch((err: Error) => setError(err.message));
+    complete().catch((err: Error) => {
+      event("Sign In Error", { denied: params.get("error") === "access_denied" });
+      setError(err.message);
+    });
   }, [router, setUser]);
 
   return (

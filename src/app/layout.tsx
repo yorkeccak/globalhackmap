@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "sonner";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
+import { OutboundLinks } from "@/components/outbound-links";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ACCOUNTS } from "@/lib/mode";
@@ -78,6 +79,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           }}
         />
         <Analytics />
+        <OutboundLinks />
       </body>
     </html>
   );

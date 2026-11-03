@@ -6,6 +6,7 @@ import { Streamdown } from "streamdown";
 
 import { ValyuMark } from "@/components/icons/agents";
 import { startSignIn, useAuth } from "@/lib/auth/client";
+import { event } from "@/lib/events";
 import { ACCOUNTS } from "@/lib/mode";
 import { VALYU_PLANS_URL } from "@/lib/site";
 import { useAccess } from "@/stores/access";
@@ -90,6 +91,7 @@ function Research({ kind, id, subject, items, title, blurb }: ResearchProps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind, id, items }),
     });
+    event("Research", { kind, status: res.status });
     const json = (await res.json()) as { taskId?: string; error?: string; needsAuth?: boolean; needsCredits?: boolean };
     if (!res.ok || !json.taskId) {
       setError({ message: json.error ?? "Could not start research", needsAuth: json.needsAuth, needsCredits: json.needsCredits });

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { ClaudeCodeIcon, ClaudeIcon, CodexIcon, CursorIcon, OpenAIIcon } from "@/components/icons/agents";
 import { type AgentLink, type AgentTarget, agentLinks, chatLinks, incidentRepoPrompt, repoAuditPrompt, repoLinks } from "@/lib/deeplinks";
+import { event } from "@/lib/events";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<AgentTarget, (props: { className?: string }) => React.ReactNode> = {
@@ -27,6 +28,7 @@ const ICON_COLOR: Record<AgentTarget, string> = {
 };
 
 function track(target: string, cve?: string) {
+  event("Fix", { target });
   void fetch("/api/track", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

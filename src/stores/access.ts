@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { useAuth } from "@/lib/auth/client";
+import { event } from "@/lib/events";
 import { ACCOUNTS } from "@/lib/mode";
 
 /** Dossiers a visitor can open each day before Global Hack Map asks them to sign in with Valyu. */
@@ -51,15 +52,18 @@ export const useAccess = create<AccessState>()(
         if (opened.includes(key)) return true;
         if (opened.length < FREE_OPENS) {
           set({ day, opened: [...opened, key] });
+          event("Free Open", { n: opened.length + 1 });
           return true;
         }
         set({ prompt: "dossiers", reason: "dossiers" });
+        event("Prompt", { reason: "dossiers" });
         return false;
       },
       requireAccount: (reason) => {
         if (!ACCOUNTS) return true;
         if (useAuth.getState().user) return true;
         set({ prompt: reason, reason });
+        event("Prompt", { reason });
         return false;
       },
       closePrompt: () => set({ prompt: null }),

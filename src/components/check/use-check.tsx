@@ -17,6 +17,7 @@ import { ACCOUNTS } from "@/lib/mode";
 import { plural } from "@/lib/og/copy";
 import { GROUPS, POPULAR, checkTerms, popularPick } from "@/lib/stack/popular";
 import type { ProductFinding, ProductMatch, StackReport } from "@/lib/stack/types";
+import { event } from "@/lib/events";
 import { cn } from "@/lib/utils";
 import { vendorDomain } from "@/lib/vendors";
 import { useAccess } from "@/stores/access";
@@ -405,6 +406,7 @@ export function UseCheck({
         });
         const json = (await res.json()) as StackReport & { error?: string };
         if (!res.ok) throw new Error(json.error ?? CHECK_FAILED);
+        event("Check", { items: items.length });
         setReport(json);
       } catch (err) {
         if (controller.signal.aborted) return;
