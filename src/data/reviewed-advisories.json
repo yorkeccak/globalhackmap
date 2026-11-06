@@ -1,0 +1,19 @@
+[
+  {
+    "cve": "CVE-2026-123158",
+    "published": "2026-11-05T15:46:26.488Z",
+    "source": "https://alpinelinux.org/posts/2026-11-05-openssh-password-authentication-bypass/"
+  },
+  {
+    "cve": "CVE-2026-83844",
+    "published": "2026-10-13T18:59:53.598Z",
+    "source": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-83844",
+    "featuredFrom": "2026-11-06T00:00:00Z"
+  },
+  {
+    "cve": "CVE-2026-70586",
+    "published": "2026-09-08T17:12:23.405Z",
+    "source": "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-70586",
+    "featuredFrom": "2026-11-06T00:00:00Z"
+  }
+]

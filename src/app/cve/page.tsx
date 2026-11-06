@@ -19,9 +19,9 @@ import { vendorDomain } from "@/lib/vendors";
 const WEEK = 7 * 86_400_000;
 
 export const metadata: Metadata = {
-  title: "New CVEs today: critical flaws and the ones being exploited",
+  title: "CVE watch: advisories to review and exploited flaws",
   description:
-    "Critical CVEs published in the last 72 hours, flaws CISA confirmed exploited this week, and the vulnerabilities in the news. Each one says who is affected and how to fix it.",
+    "Current critical CVEs and selected older vendor advisories, alongside flaws CISA confirmed exploited this week. Check original publication dates, affected versions and fixes.",
   alternates: { canonical: "/cve" },
   openGraph: { type: "website", siteName: "Global Hack Map", url: "/cve" },
 };
@@ -41,8 +41,9 @@ function Status({ vuln, now }: { vuln: Vuln; now: number }) {
   }
   if (vuln.newsCount) return <span className="text-reported">In the news</span>;
   return (
-    <span className="tabular text-reported">
-      Critical{vuln.cvss ? ` ${vuln.cvss.toFixed(1)}` : ""}
+    <span className="tabular text-ink-3">
+      {vuln.severity ? vuln.severity[0] + vuln.severity.slice(1).toLowerCase() : "Severity unknown"}
+      {vuln.cvss !== undefined ? ` ${vuln.cvss.toFixed(1)}` : ""}
       {vuln.published ? <span className="text-ink-4"> · published {relativeTime(vuln.published, now)}</span> : null}
     </span>
   );
@@ -93,7 +94,7 @@ function Section({ id, title, note, items, now }: { id: string; title: string; n
   );
 }
 
-/** The CVE index: what is new and what is being exploited, so the ticker and search have somewhere to land. */
+/** The CVE index: advisories to review and confirmed exploitation, with original publication dates. */
 export default async function CveIndex() {
   "use cache";
   cacheLife("feed");
@@ -119,11 +120,12 @@ export default async function CveIndex() {
           {longDate(snapshot.generatedAt)} · updated {utcTime(snapshot.generatedAt)}
         </Eyebrow>
         <h1 className="mt-3 font-condensed text-[clamp(36px,5.4vw,58px)] font-[760] leading-[0.98] tracking-[-0.015em] text-ink text-balance">
-          New CVEs, and the ones attackers are using
+          Advisories to review, and the flaws attackers are using
         </h1>
         <p className="mt-4 max-w-[62ch] text-[16px] leading-relaxed text-ink-2 text-pretty">
-          {plural(exploited.length, "flaw")} confirmed exploited this week and {plural(fresh.length, "critical CVE")} published in the last 72 hours, from CISA,
-          CVE.org, NVD and GitHub. Open any of them for who is affected, how to fix it, and one-click prompts for Claude Code, Codex and Cursor.
+          {plural(exploited.length, "flaw")} confirmed exploited this week and {plural(fresh.length, "CVE advisory", "CVE advisories")} to review. The list
+          includes current critical flaws and selected older vendor advisories, with their original publication dates. Sources include CISA, CVE.org,
+          NVD, GitHub and vendors. Open any entry for affected versions and fixes.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/check" className={PRIMARY}>
@@ -145,8 +147,8 @@ export default async function CveIndex() {
         />
         <Section
           id="new"
-          title="New critical, last 72 hours"
-          note="Scored 9 or more out of 10 by the vendor, the CVE assigner or NVD. Not known to be exploited yet. If you run one, patch it this week."
+          title="Advisories to review"
+          note="Current critical flaws and selected older vendor advisories, with their original publication dates, severity and score. Selection does not mean a new disclosure or confirmed exploitation. Check the affected versions and vendor fix."
           items={fresh}
           now={now}
         />
