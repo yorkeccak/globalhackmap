@@ -312,9 +312,9 @@ function RowBody({ row }: { row: Row }) {
     case "verdict": {
       const hit = row.found > 0 || row.exploited > 0;
       const parts = [
-        row.found ? `${plural(row.found, "incident")} at “${row.query}”` : null,
+        row.found ? `${plural(row.found, "incident")} at “${row.query}” in the last 30 days` : null,
         row.exploited ? plural(row.exploited, "exploited flaw") : null,
-        row.flaws - row.exploited > 0 ? `${row.flaws - row.exploited} new or in the news` : null,
+        row.flaws - row.exploited > 0 ? plural(row.flaws - row.exploited, "advisory to review", "advisories to review") : null,
       ].filter(Boolean);
       return hit || row.flaws ? (
         <>
@@ -324,7 +324,7 @@ function RowBody({ row }: { row: Row }) {
             <ShieldWarning className="size-4" weight="fill" />
           </span>
           <span className="text-[14px] text-ink">
-            <span className="font-semibold">{parts.join(", ")}</span> <span className="text-ink-3">in the last 30 days</span>
+            <span className="font-semibold">{parts.join(", ")}</span> <span className="text-ink-3">tracked here</span>
           </span>
         </>
       ) : (

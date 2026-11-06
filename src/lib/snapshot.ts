@@ -4,6 +4,7 @@ import { cacheLife, cacheTag } from "next/cache";
 
 import seed from "@/data/seed-snapshot.json";
 import { beforeDeadline } from "@/lib/fetched";
+import { reserveReviewedMembership, resolveReviewedAdvisories } from "@/lib/sources/advisories";
 import { buildIncidents } from "@/lib/pipeline";
 import { getLatestBrief, getOutages } from "@/lib/sources/context";
 import { getNewsIncidents, getRansomwareClaims, getSecDisclosures, getSweepIncidents, type Candidate } from "@/lib/sources/incidents";
@@ -77,7 +78,7 @@ async function buildSnapshot(): Promise<Snapshot> {
   const now = Date.now();
   const len = (value: unknown[]) => value.length;
 
-  const [kevAll, nvdCritical, cveListCritical, ghsaCritical, malware, claims, sec, news, sweeps, outages, brief, cveNews] = await Promise.all([
+  const [kevAll, nvdCritical, cveListCritical, ghsaCritical, malware, claims, sec, news, sweeps, outages, brief, cveNews, reviewed] = await Promise.all([
     settle(feeds, "CISA KEV", getKevCatalog, [] as Vuln[], len),
     settle(feeds, "NVD", () => getRecentCriticalCves(3), [] as Vuln[], len),
     settle(feeds, "CVE list", getLatestCriticalCves, [] as Vuln[], len),
@@ -92,6 +93,7 @@ async function buildSnapshot(): Promise<Snapshot> {
     settle(feeds, "IODA outages", getOutages, [], len),
     settle(feeds, "Daily brief", getLatestBrief, null, (b) => (b ? b.items.length : 0)),
     settle(feeds, "Valyu CVE news", getCveNewsMentions, {} as Record<string, number>, (m) => Object.keys(m).length),
+    settle(feeds, "Reviewed advisories", () => resolveReviewedAdvisories(now, getCveRecord), [] as Vuln[], len),
   ]);
 
   const live = await buildIncidents([...news, ...sweeps, ...sec, ...claims], { wikidataMs: WIKIDATA_MS });
@@ -122,7 +124,8 @@ async function buildSnapshot(): Promise<Snapshot> {
     }),
   );
 
-  const trendingRaw = mergeVulns([mentioned, nvdCritical, cveListCritical, ghsaCritical]).map((vuln) => {
+  const discovered = mergeVulns([mentioned, nvdCritical, cveListCritical, ghsaCritical]);
+  const trendingRaw = mergeVulns([reviewed, discovered]).map((vuln) => {
     const kev = kevAll.find((entry) => entry.cve === vuln.cve);
     return kev
       ? {
@@ -146,21 +149,22 @@ async function buildSnapshot(): Promise<Snapshot> {
   // Rank: in the news first, then exploitation likelihood, then severity. Unnamed router firmware noise sinks.
   const rank = (vuln: Vuln) =>
     (vuln.newsCount ?? 0) * 10 + (vuln.kev ? 8 : 0) + (vuln.epss ?? 0) * 20 + (vuln.cvss ?? 0) / 2 + (vuln.vendor || vuln.product ? 1 : -3);
-  const trending = trendingRaw
-    .map(withEpss)
-    .sort((a, b) => rank(b) - rank(a) || (b.published ?? "").localeCompare(a.published ?? ""))
-    .slice(0, 60);
+  const trending = reserveReviewedMembership(
+    trendingRaw.map(withEpss).sort((a, b) => rank(b) - rank(a) || (b.published ?? "").localeCompare(a.published ?? "")),
+    reviewed,
+    60,
+  );
 
   const recent = (iso: string | undefined, days: number) => Boolean(iso) && now - Date.parse(iso!) < days * DAY;
   const kev = kevRecent.map(withEpss);
   const kevDate = (vuln: Vuln) => (vuln.kevAdded ? `${vuln.kevAdded}T00:00:00Z` : undefined);
   const freshAt = (vuln: Vuln) => (recent(kevDate(vuln), 7) ? kevDate(vuln)! : (vuln.published ?? ""));
-  const fresh = mergeVulns([
+  const fresh = reserveReviewedMembership(mergeVulns([
+    trendingRaw.filter((vuln) => reviewed.some((entry) => entry.cve === vuln.cve)).map(withEpss),
     kev.filter((vuln) => recent(kevDate(vuln), 7)),
     trendingRaw.filter((vuln) => vuln.severity === "CRITICAL" && recent(vuln.published, 3)).map(withEpss),
   ])
-    .sort((a, b) => freshAt(b).localeCompare(freshAt(a)))
-    .slice(0, 40);
+    .sort((a, b) => freshAt(b).localeCompare(freshAt(a))), reviewed, 40);
   const last7 = incidents.filter((incident) => recent(incident.date, 7));
 
   return {
@@ -179,7 +183,7 @@ async function buildSnapshot(): Promise<Snapshot> {
       claimed7d: last7.filter((incident) => incident.status === "claimed").length,
       countries7d: new Set(last7.map((incident) => incident.country)).size,
       kevAdded30d: kevAll.filter((vuln) => recent(kevDate(vuln), 30)).length,
-      criticalCves72h: trendingRaw.filter((vuln) => vuln.severity === "CRITICAL" && recent(vuln.published, 3) && !kevIds.has(vuln.cve)).length,
+      criticalCves72h: discovered.filter((vuln) => vuln.severity === "CRITICAL" && recent(vuln.published, 3) && !kevIds.has(vuln.cve)).length,
       malware72h: malware.filter((item) => recent(item.published, 3)).length,
       outagesActive: outages.filter((outage) => !outage.end).length,
     },

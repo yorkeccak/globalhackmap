@@ -36,7 +36,7 @@ interface StoryProps {
   vulns: Vuln[];
   trending: Vuln[];
   kev: Vuln[];
-  /** New critical CVEs and this week's KEV additions, newest first. */
+  /** Current critical and selected vendor advisories, plus this week's KEV additions. */
   fresh: Vuln[];
   malware: MalwarePackage[];
   outages: Outage[];
@@ -58,14 +58,17 @@ const StoryPanel = forwardRef<OmniboxHandle, StoryProps>(function Story(props, r
   const [question, setQuestion] = useState<string | null>(null);
   const tab = useSituation((s) => s.tab);
   const setTab = useSituation((s) => s.setTab);
-  const exploited = useMemo(() => trending.filter((vuln) => vuln.kev || vuln.newsCount), [trending]);
-  const newCritical = useMemo(() => fresh.filter((vuln) => !vuln.kev), [fresh]);
-  // Vendors in today's exploited and new lists, offered as one-tap additions to the visitor's stack.
+  const exploited = useMemo(() => [...trending.filter((vuln) => vuln.kev || vuln.newsCount), ...fresh.filter((vuln) => vuln.kev)], [trending, fresh]);
+  const advisories = useMemo(() => fresh.filter((vuln) => !vuln.kev), [fresh]);
+  // Vendors in the exploited and advisory lists, offered as one-tap additions to the visitor's stack.
   const stackSuggestions = useMemo(
-    () => [...new Set([...kev, ...exploited, ...newCritical].map((vuln) => tidyVendor(vuln.vendor)).filter((name) => name && name.length < 28))].slice(0, 24),
-    [kev, exploited, newCritical],
+    () => [...new Set([...kev, ...exploited, ...advisories].map((vuln) => tidyVendor(vuln.vendor)).filter((name) => name && name.length < 28))].slice(0, 24),
+    [kev, exploited, advisories],
   );
-  const cveCount = useMemo(() => new Set([...newCritical, ...exploited, ...kev.slice(0, 25)].map((vuln) => vuln.cve)).size, [newCritical, exploited, kev]);
+  const cveCount = useMemo(
+    () => vulnSections(advisories, exploited, kev).reduce((count, section) => count + section.items.length, 0),
+    [advisories, exploited, kev],
+  );
 
   return (
     <section className="pointer-events-auto flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain scrollbar-thin md:overflow-hidden">
@@ -132,7 +135,7 @@ const StoryPanel = forwardRef<OmniboxHandle, StoryProps>(function Story(props, r
 
       <div className="relative px-1.5 pb-3 md:min-h-0 md:flex-1 md:overflow-y-auto md:scrollbar-thin" role="tabpanel">
         {tab === "incidents" ? <IncidentFeed incidents={incidents} now={now} /> : null}
-        {tab === "exploited" ? <VulnRows fresh={newCritical} trending={exploited} kev={kev} now={now} /> : null}
+        {tab === "exploited" ? <VulnRows fresh={advisories} trending={exploited} kev={kev} now={now} /> : null}
         {tab === "malware" ? <MalwareRows malware={malware} now={now} /> : null}
         {tab === "outages" ? <OutageRows outages={outages} now={now} /> : null}
       </div>
@@ -457,22 +460,36 @@ function VulnStatus({ vuln, now }: { vuln: Vuln; now: number }) {
   }
   return (
     <>
-      <span className="size-[6px] shrink-0 rounded-full bg-reported" />
-      <span className="tabular shrink-0 text-reported">Critical{vuln.cvss ? ` ${vuln.cvss.toFixed(1)}` : ""}</span>
-      {vuln.published ? <span className="shrink-0 text-ink-4">· {relativeTime(vuln.published, now)}</span> : null}
+      <span className="size-[6px] shrink-0 rounded-full bg-ink-4" />
+      <span className="tabular shrink-0 text-ink-3">
+        {vuln.severity ? vuln.severity[0] + vuln.severity.slice(1).toLowerCase() : "Severity unknown"}
+        {vuln.cvss !== undefined ? ` ${vuln.cvss.toFixed(1)}` : ""}
+      </span>
+      {vuln.published ? <span className="shrink-0 text-ink-4">· published {relativeTime(vuln.published, now)}</span> : null}
     </>
   );
+}
+
+/** Keep the bounded advisory feeds whole; only the historical KEV catalogue is capped. */
+function vulnSections(fresh: Vuln[], trending: Vuln[], kev: Vuln[]) {
+  const seen = new Set<string>();
+  const unique = (items: Vuln[]) =>
+    items.filter((vuln) => {
+      if (seen.has(vuln.cve)) return false;
+      seen.add(vuln.cve);
+      return true;
+    });
+  return [
+    { title: "Advisories to review", items: unique(fresh) },
+    { title: "Exploited or in the news", items: unique(trending) },
+    { title: "Newly confirmed exploited", items: unique(kev).slice(0, 25) },
+  ].filter((section) => section.items.length);
 }
 
 function VulnRows({ fresh, trending, kev, now }: { fresh: Vuln[]; trending: Vuln[]; kev: Vuln[]; now: number }) {
   const stack = useStack((s) => s.items);
   const selectCve = useSituation((s) => s.selectCve);
-  const seen = new Set([...fresh, ...trending].map((vuln) => vuln.cve));
-  const sections = [
-    { title: "New critical, last 72 hours", items: fresh.slice(0, 25) },
-    { title: "Exploited or in the news", items: trending.slice(0, 25) },
-    { title: "Newly confirmed exploited", items: kev.filter((vuln) => !seen.has(vuln.cve)).slice(0, 25) },
-  ].filter((section) => section.items.length);
+  const sections = vulnSections(fresh, trending, kev);
   return (
     <div>
       {sections.map((section) => (
