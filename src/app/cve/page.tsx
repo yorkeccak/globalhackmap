@@ -124,8 +124,8 @@ export default async function CveIndex() {
         </h1>
         <p className="mt-4 max-w-[62ch] text-[16px] leading-relaxed text-ink-2 text-pretty">
           {plural(exploited.length, "flaw")} confirmed exploited this week and {plural(fresh.length, "CVE advisory", "CVE advisories")} to review. The list
-          includes current critical flaws and selected older vendor advisories, with their original publication dates. Sources include CISA, CVE.org,
-          NVD, GitHub and vendors. Open any entry for affected versions and fixes.
+          includes current critical flaws and selected older vendor advisories, with their original publication dates. Sources include CISA, CVE.org, NVD,
+          GitHub and vendors. Open any entry for affected versions and fixes.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/check" className={PRIMARY}>

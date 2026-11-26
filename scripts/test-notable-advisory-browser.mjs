@@ -226,7 +226,9 @@ try {
     }
     assert.ok(rendered.ticker.includes(age.replace(" ago", "")));
     assert.doesNotMatch([rendered.home, rendered.ticker, rendered.index].join(" "), /new|recent|critical|exploited|in the news|ransomware/i);
-    console.log(`PASS ${entry.cve}: once per list, High ${entry.cvss.toFixed(1)}, original publication ${entry.published.slice(0, 10)} (${age}), neutral status`);
+    console.log(
+      `PASS ${entry.cve}: once per list, High ${entry.cvss.toFixed(1)}, original publication ${entry.published.slice(0, 10)} (${age}), neutral status`,
+    );
   }
   console.log("PASS browser DOM: 32 fresh + 28 unique trending + 25 unique KEV = 85 rows and matching tab count");
   console.log("PASS advisory at position 29 appears once, High 8.1, in home list, ticker and index");

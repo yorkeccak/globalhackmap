@@ -159,12 +159,15 @@ async function buildSnapshot(): Promise<Snapshot> {
   const kev = kevRecent.map(withEpss);
   const kevDate = (vuln: Vuln) => (vuln.kevAdded ? `${vuln.kevAdded}T00:00:00Z` : undefined);
   const freshAt = (vuln: Vuln) => (recent(kevDate(vuln), 7) ? kevDate(vuln)! : (vuln.published ?? ""));
-  const fresh = reserveReviewedMembership(mergeVulns([
-    trendingRaw.filter((vuln) => reviewed.some((entry) => entry.cve === vuln.cve)).map(withEpss),
-    kev.filter((vuln) => recent(kevDate(vuln), 7)),
-    trendingRaw.filter((vuln) => vuln.severity === "CRITICAL" && recent(vuln.published, 3)).map(withEpss),
-  ])
-    .sort((a, b) => freshAt(b).localeCompare(freshAt(a))), reviewed, 40);
+  const fresh = reserveReviewedMembership(
+    mergeVulns([
+      trendingRaw.filter((vuln) => reviewed.some((entry) => entry.cve === vuln.cve)).map(withEpss),
+      kev.filter((vuln) => recent(kevDate(vuln), 7)),
+      trendingRaw.filter((vuln) => vuln.severity === "CRITICAL" && recent(vuln.published, 3)).map(withEpss),
+    ]).sort((a, b) => freshAt(b).localeCompare(freshAt(a))),
+    reviewed,
+    40,
+  );
   const last7 = incidents.filter((incident) => recent(incident.date, 7));
 
   return {
