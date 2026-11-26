@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
+import { asciiFont, asciiFontLoaded } from "@/components/kit/ascii-font";
 import { globeCircle, useMapInstance } from "@/components/map/map-instance";
 import { useSituation } from "@/stores/situation";
 
@@ -106,8 +107,7 @@ function glyphAtlas(dpr: number): HTMLCanvasElement {
   canvas.width = w * RAMP.length;
   canvas.height = h;
   const ctx = canvas.getContext("2d")!;
-  const family = getComputedStyle(document.documentElement).getPropertyValue("--font-geist-mono") || "monospace";
-  ctx.font = `500 ${Math.round(h * 0.86)}px ${family}, ui-monospace, monospace`;
+  ctx.font = asciiFont(`500 ${Math.round(h * 0.86)}px`);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#fff";
@@ -190,7 +190,7 @@ export function AsciiAtlas() {
       texture(0, image, gl.LINEAR);
       imageReady = true;
     };
-    void document.fonts.ready.then(() => {
+    void asciiFontLoaded().then(() => {
       if (!disposed) texture(1, glyphAtlas(dpr), gl.NEAREST);
     });
     texture(1, glyphAtlas(dpr), gl.NEAREST);

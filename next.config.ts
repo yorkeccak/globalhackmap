@@ -48,6 +48,9 @@ const nextConfig: NextConfig = {
     snapshot: { stale: 5 * MINUTE, revalidate: 10 * MINUTE, expire: DAY },
     // Free public feeds (CISA, GitHub, IODA, RansomLook) and lists built from the snapshot.
     feed: { stale: 5 * MINUTE, revalidate: 15 * MINUTE, expire: DAY },
+    // Pages about one CVE or incident. They are expired by tag when the data they render changes
+    // (/api/cron/revalidate), so the timed revalidate is only a ceiling.
+    record: { stale: 5 * MINUTE, revalidate: 6 * HOUR, expire: 7 * DAY },
     // Per-CVE lookups and runbooks: NVD and OSV change slowly and rate-limit.
     lookup: { stale: HOUR, revalidate: 6 * HOUR, expire: 7 * DAY },
     // Shared AI answers on the deployment's key.

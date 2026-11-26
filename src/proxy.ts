@@ -35,8 +35,9 @@ export async function proxy(request: NextRequest) {
   }
   // Authenticated scheduled jobs must keep working during a limiter outage.
   const scheduled = path.startsWith("/api/cron/") && isAuthorizedCron(request);
-  const lookup = /^\/(?:cve|fix|incident|country)\/[^/]+/.test(path);
-  if ((path.startsWith("/api/") && !scheduled) || lookup) {
+  // Runbooks are the only page lookups with a per-visitor budget; CVE and country pages are cached.
+  const runbook = /^\/fix\/[^/]+/.test(path);
+  if ((path.startsWith("/api/") && !scheduled) || runbook) {
     const response = limitResponse(await takeLimits(requestLimits(path, request.method, clientIp(request))));
     if (response) return response;
   }
@@ -54,6 +55,17 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+/**
+ * Canonical CVE OG images, the RSC and segment-prefetch forms of CVE pages, incident pages and the
+ * cached, parameterless GET APIs need nothing from the proxy, so it does not run for them. Vercel
+ * matches these patterns without regard to case, so the HTML form of every CVE page still runs it:
+ * that is where a lowercase ID gets its 308. Malformed and escaped IDs still get their 404 or 400.
+ */
 export const config = {
-  matcher: ["/cve/:path*", "/incident/:path*", "/country/:path*", "/fix/:path*", "/api/:path*"],
+  matcher: [
+    "/cve/((?!CVE-\\d{4}-\\d{4,7}(?:/opengraph-image(?:\\.rsc|\\.segments/[^%]+\\.segment\\.rsc)?|\\.rsc|\\.segments/[^%]+\\.segment\\.rsc)$).*)",
+    "/country/:path*",
+    "/fix/:path*",
+    "/api/((?!logo$|snapshot$|patch$).*)",
+  ],
 };

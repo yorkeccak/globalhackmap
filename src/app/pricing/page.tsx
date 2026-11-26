@@ -1,5 +1,6 @@
 import { ArrowUpRight, Check } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
+import { Mona_Sans } from "next/font/google";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -130,6 +131,10 @@ function CostBar({ scale }: { scale: number | "month" }) {
   );
 }
 
+// The layout's Mona has no width axis. The plan prices need its condensed width, so this page alone loads
+// the full face; it is not preloaded because the prices sit below the first screen.
+const monaWidths = Mona_Sans({ subsets: ["latin"], axes: ["wdth"], display: "swap", preload: false });
+
 export default function PricingPage() {
   // Self-hosted deployments have no accounts or plans.
   if (!ACCOUNTS) notFound();
@@ -237,7 +242,12 @@ export default function PricingPage() {
                   <h3 className="text-[14px] font-medium text-ink">{plan.name}</h3>
                   <p className="mt-6 flex items-baseline gap-2">
                     {/* Mona at a condensed width: the display face draws a slashed zero, which reads as "$1θ" in a price. */}
-                    <span className="font-sans text-[52px] font-bold leading-[0.86] tracking-[-0.04em] text-ink [font-variation-settings:'wdth'_75]">
+                    <span
+                      className={cn(
+                        monaWidths.className,
+                        "text-[52px] font-bold leading-[0.86] tracking-[-0.04em] text-ink [font-variation-settings:'wdth'_75]",
+                      )}
+                    >
                       {plan.price}
                     </span>
                     <span className="text-[13px] text-ink-3">{plan.per}</span>

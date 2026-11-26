@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { GeistMono } from "geist/font/mono";
 import { Hubot_Sans, Martian_Mono, Mona_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "sonner";
@@ -17,10 +17,21 @@ import "./globals.css";
 // `subsets` picks what to preload. Latin-ext (accented names) is still declared with its unicode-range,
 // so it downloads only on pages that render those glyphs instead of on every first visit.
 // Mona Sans for reading, Hubot Sans (condensed) for numbers and titles, Martian Mono for labels and data.
-// Geist Mono stays only as the glyph source for the ASCII art canvases, whose metrics were tuned to it.
-const mona = Mona_Sans({ subsets: ["latin"], axes: ["wdth"], variable: "--font-mona", display: "swap" });
+// Mona is only ever drawn at its default width, so it ships without the width axis.
+const mona = Mona_Sans({ subsets: ["latin"], variable: "--font-mona", display: "swap" });
 const hubot = Hubot_Sans({ subsets: ["latin"], axes: ["wdth"], variable: "--font-hubot", display: "swap" });
 const martian = Martian_Mono({ subsets: ["latin"], axes: ["wdth"], variable: "--font-martian", display: "swap" });
+// Geist Mono stays only as the glyph source for the ASCII art canvases, whose metrics were tuned to it.
+// Only those canvases use it, so it is not preloaded; they load it before drawing.
+const geistMono = localFont({
+  src: "../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2",
+  variable: "--font-geist-mono",
+  weight: "100 900",
+  display: "swap",
+  preload: false,
+  adjustFontFallback: false,
+  fallback: ["ui-monospace", "SFMono-Regular", "Roboto Mono", "Menlo", "Monaco", "Liberation Mono", "DejaVu Sans Mono", "Courier New", "monospace"],
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -65,7 +76,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`dark ${mona.variable} ${hubot.variable} ${martian.variable} ${GeistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`dark ${mona.variable} ${hubot.variable} ${martian.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full bg-space text-ink">
         <NuqsAdapter>
           <TooltipProvider delay={250}>{children}</TooltipProvider>

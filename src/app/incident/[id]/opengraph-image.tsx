@@ -1,8 +1,9 @@
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 
-import { findIncident } from "@/lib/lookup";
+import { incidentTag } from "@/lib/cache-tags";
 import { cardBytes, pngResponse } from "@/lib/og/card";
 import { fallbackCard, incidentCard } from "@/lib/og/cards";
+import { getSnapshot, snapshotDegraded } from "@/lib/snapshot";
 import { incidentParams } from "@/lib/static-params";
 import { decodeParam } from "@/lib/utils";
 
@@ -14,10 +15,14 @@ export async function generateStaticParams() {
   return incidentParams();
 }
 
+/** The card, kept until the incident changes, like its page. */
 async function render(id: string): Promise<ArrayBuffer> {
   "use cache";
-  cacheLife("feed");
-  const incident = await findIncident(id).catch(() => undefined);
+  cacheTag(incidentTag(id));
+  const snapshot = await getSnapshot().catch(() => null);
+  if (snapshot && !snapshotDegraded(snapshot)) cacheLife("record");
+  else cacheLife("minutes");
+  const incident = snapshot?.incidents.find((item) => item.id === id);
   if (!incident) return cardBytes(fallbackCard("This incident is no longer on the map", "Incidents age out after 30 days. See what is happening now."));
   return cardBytes(incidentCard(incident));
 }

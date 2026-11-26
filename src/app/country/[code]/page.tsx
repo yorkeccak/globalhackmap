@@ -69,7 +69,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 async function metadataFor(iso: string): Promise<Metadata> {
   "use cache";
-  cacheLife("feed");
+  cacheLife("snapshot");
   const snapshot = await getSnapshot();
   const incidents = countryIncidents(snapshot, iso);
   const { confirmed, reported, claimed } = tally(incidents);
@@ -109,7 +109,7 @@ async function CountryRoute({ params }: Props) {
 /** The country page, cached as rendered HTML so dates and copy are computed once per refresh. */
 async function CountryView({ iso }: { iso: string }) {
   "use cache";
-  cacheLife("feed");
+  cacheLife("snapshot");
   const snapshot = await getSnapshot();
   const incidents = countryIncidents(snapshot, iso);
   const outages = snapshot.outages.filter((outage) => outage.country === iso);

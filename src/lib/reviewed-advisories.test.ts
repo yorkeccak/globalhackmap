@@ -7,21 +7,60 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
 vi.mock("@/lib/pipeline", () => ({ buildIncidents: async () => [] }));
 vi.mock("@/lib/sources/context", () => ({ getLatestBrief: async () => null, getOutages: async () => [] }));
-vi.mock("@/lib/sources/incidents", () => ({ getNewsIncidents: async () => [], getRansomwareClaims: async () => [], getSecDisclosures: async () => [], getSweepIncidents: async () => [] }));
+vi.mock("@/lib/sources/incidents", () => ({
+  getNewsIncidents: async () => [],
+  getRansomwareClaims: async () => [],
+  getSecDisclosures: async () => [],
+  getSweepIncidents: async () => [],
+}));
 vi.mock("@/lib/sources/vulns", () => ({
-  getKevCatalog: async () => [], getRecentCriticalCves: async () => [], getCriticalAdvisories: async () => [],
+  getKevCatalog: async () => [],
+  getRecentCriticalCves: async () => [],
+  getCriticalAdvisories: async () => [],
   getLatestCriticalCves: async () => Array.from({ length: 80 }, (_, i) => ({ ...record, cve: `CVE-2026-${10000 + i}`, severity: "CRITICAL", cvss: 9.8 })),
-  getMalwarePackages: async () => [], getCveNewsMentions: async () => ({ [record.cve]: 2 }),
-  getCveRecord: async (cve: string) => [record, ...paint].find((entry) => entry.cve === cve) ?? null, getEpss: async () => new Map(),
+  getMalwarePackages: async () => [],
+  getCveNewsMentions: async () => ({ [record.cve]: 2 }),
+  getCveRecord: async (cve: string) => [record, ...paint].find((entry) => entry.cve === cve) ?? null,
+  getEpss: async () => new Map(),
 }));
 
 const now = Date.parse("2026-11-06T16:00:00Z");
 const published = "2026-11-05T15:46:26.488Z";
 const source = "https://alpinelinux.org/posts/2026-11-05-openssh-password-authentication-bypass/";
-const record: Vuln = { cve: "CVE-2026-123158", vendor: "OpenBSD", product: "OpenSSH", name: "OpenSSH", description: "Password authentication bypass", cvss: 8.1, severity: "HIGH", published, kev: false, ransomware: false, references: ["https://www.cve.org/CVERecord?id=CVE-2026-123158"] };
+const record: Vuln = {
+  cve: "CVE-2026-123158",
+  vendor: "OpenBSD",
+  product: "OpenSSH",
+  name: "OpenSSH",
+  description: "Password authentication bypass",
+  cvss: 8.1,
+  severity: "HIGH",
+  published,
+  kev: false,
+  ransomware: false,
+  references: ["https://www.cve.org/CVERecord?id=CVE-2026-123158"],
+};
 const paint: Vuln[] = [
-  { ...record, cve: "CVE-2026-83844", vendor: "Microsoft", product: "Microsoft Paint", name: "Windows Paint Remote Code Execution Vulnerability", cvss: 8.1, published: "2026-10-13T18:59:53.598Z", references: ["https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-83844"] },
-  { ...record, cve: "CVE-2026-70586", vendor: "Microsoft", product: "Windows 10 Version 1607", name: "Windows Paint Remote Code Execution Vulnerability", cvss: 8.8, published: "2026-09-08T17:12:23.405Z", references: ["https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-70586"] },
+  {
+    ...record,
+    cve: "CVE-2026-83844",
+    vendor: "Microsoft",
+    product: "Microsoft Paint",
+    name: "Windows Paint Remote Code Execution Vulnerability",
+    cvss: 8.1,
+    published: "2026-10-13T18:59:53.598Z",
+    references: ["https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-83844"],
+  },
+  {
+    ...record,
+    cve: "CVE-2026-70586",
+    vendor: "Microsoft",
+    product: "Windows 10 Version 1607",
+    name: "Windows Paint Remote Code Execution Vulnerability",
+    cvss: 8.8,
+    published: "2026-09-08T17:12:23.405Z",
+    references: ["https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-70586"],
+  },
 ];
 
 describe("reviewed advisory eligibility", () => {
@@ -47,7 +86,9 @@ describe("reviewed advisory eligibility", () => {
       }
       expect(snapshot.stats.criticalCves72h).toBe(80);
       expect(snapshot.incidents.some((incident) => incident.cves.some((cve) => paint.some((v) => v.cve === cve)))).toBe(false);
-    } finally { vi.restoreAllMocks(); }
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
   it("features both older Paint records only during the explicit seven-day window", async () => {
     const lookup = async (cve: string) => paint.find((v) => v.cve === cve) ?? null;
@@ -57,18 +98,24 @@ describe("reviewed advisory eligibility", () => {
     expect(await resolveReviewedAdvisories(Date.parse("2026-11-05T23:59:59.999Z"), lookup)).toEqual([]);
   });
 
-  it.each(["invalid", "2026-11-07T00:00:00Z", "2026-10-30T16:00:00Z", "2026-11-31T00:00:00Z", ""])("rejects malformed, future or expired feature window %s", async (featuredFrom) => {
-    const lookup = vi.fn(async () => paint[0]);
-    expect(await resolveReviewedAdvisories(now, lookup, [{ ...registry[1], featuredFrom }])).toEqual([]);
-    expect(lookup).not.toHaveBeenCalled();
-  });
+  it.each(["invalid", "2026-11-07T00:00:00Z", "2026-10-30T16:00:00Z", "2026-11-31T00:00:00Z", ""])(
+    "rejects malformed, future or expired feature window %s",
+    async (featuredFrom) => {
+      const lookup = vi.fn(async () => paint[0]);
+      expect(await resolveReviewedAdvisories(now, lookup, [{ ...registry[1], featuredFrom }])).toEqual([]);
+      expect(lookup).not.toHaveBeenCalled();
+    },
+  );
 
-  it.each(["invalid", "2026-11-07T00:00:00Z", "2026-02-30T00:00:00Z", undefined])("never bypasses source publication validation with a feature window: %s", async (date) => {
-    expect(await resolveReviewedAdvisories(now, async () => ({ ...paint[0], published: date }))).toEqual([]);
-    if (date !== undefined) {
-      expect(await resolveReviewedAdvisories(now, async () => paint[0], [{ ...registry[1], published: date }])).toEqual([]);
-    }
-  });
+  it.each(["invalid", "2026-11-07T00:00:00Z", "2026-02-30T00:00:00Z", undefined])(
+    "never bypasses source publication validation with a feature window: %s",
+    async (date) => {
+      expect(await resolveReviewedAdvisories(now, async () => ({ ...paint[0], published: date }))).toEqual([]);
+      if (date !== undefined) {
+        expect(await resolveReviewedAdvisories(now, async () => paint[0], [{ ...registry[1], published: date }])).toEqual([]);
+      }
+    },
+  );
 
   it("keeps reviewed lookups and reserved membership bounded to eight", async () => {
     const entries = Array.from({ length: 20 }, (_, i) => ({ ...registry[1], cve: `CVE-2026-${20000 + i}` }));
@@ -106,7 +153,11 @@ describe("reviewed advisory eligibility", () => {
 
   it("safely skips absent/rejected, failed and mismatched lookups", async () => {
     expect(await resolveReviewedAdvisories(now, async () => null)).toEqual([]);
-    expect(await resolveReviewedAdvisories(now, async () => { throw new Error("unavailable"); })).toEqual([]);
+    expect(
+      await resolveReviewedAdvisories(now, async () => {
+        throw new Error("unavailable");
+      }),
+    ).toEqual([]);
     expect(await resolveReviewedAdvisories(now, async () => ({ ...record, cve: "CVE-2026-9999" }))).toEqual([]);
   });
 

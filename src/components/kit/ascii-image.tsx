@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+import { asciiFont, asciiFontLoaded } from "@/components/kit/ascii-font";
+
 const RAMP = " .,:;-=+*xo%#@";
 
 /**
@@ -62,8 +64,7 @@ export function AsciiImage({
       canvas.height = Math.round(height * dpr);
       const ctx = canvas.getContext("2d")!;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const mono = getComputedStyle(document.documentElement).getPropertyValue("--font-geist-mono").trim() || "monospace";
-      ctx.font = `500 ${cell * 1.4}px ${mono}, ui-monospace, monospace`;
+      ctx.font = asciiFont(`500 ${cell * 1.4}px`);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
@@ -106,7 +107,7 @@ export function AsciiImage({
       frame = requestAnimationFrame(tick);
     };
 
-    image.onload = () => void document.fonts.ready.then(render);
+    image.onload = () => void asciiFontLoaded().then(render);
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(frame);
       render();

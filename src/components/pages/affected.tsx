@@ -1,8 +1,9 @@
 import { ShieldCheck, Target } from "@phosphor-icons/react/ssr";
+import { cacheLife, cacheTag } from "next/cache";
 
 import { Eyebrow } from "@/components/pages/tile";
+import { cveTag } from "@/lib/cache-tags";
 import { explainCve } from "@/lib/patch";
-import type { Vuln } from "@/lib/types";
 
 function Line({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
@@ -19,10 +20,21 @@ function Line({ icon, label, children }: { icon: React.ReactNode; label: string;
 }
 
 /** "You are affected if" and "The fix", researched from the vendor advisory. Renders nothing if unavailable. */
-export async function Affected({ vuln }: { vuln: Vuln }) {
-  if (!vuln.vendor || !vuln.product) return null;
-  // Streams inside its own Suspense boundary, so a cold answer never blocks the page around it.
-  const explainer = await explainCve(vuln.cve).catch(() => null);
+export function Affected({ cve, vendor, product }: { cve: string; vendor: string; product: string }) {
+  if (!vendor || !product) return null;
+  return <AffectedFor cve={cve} />;
+}
+
+/**
+ * Streams inside its own Suspense boundary, so a cold answer never blocks the page around it. Kept with
+ * the CVE's page; a missing explainer is retried hourly without making the whole page rebuild.
+ */
+async function AffectedFor({ cve }: { cve: string }) {
+  "use cache";
+  cacheTag(cveTag(cve));
+  const explainer = await explainCve(cve).catch(() => null);
+  if (explainer) cacheLife("record");
+  else cacheLife("hours");
   if (!explainer) return null;
   return (
     <>

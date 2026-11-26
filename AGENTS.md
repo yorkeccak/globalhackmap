@@ -20,7 +20,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 `cacheComponents` and `partialPrefetching` are on. The rules that keep builds green and API spend bounded:
 
-- Cache with `"use cache"` plus an explicit `cacheLife` profile from `next.config.ts` (`snapshot`, `feed`, `lookup`, `answer`, `paid`). Never `unstable_cache`, never `revalidate`/`dynamic`/`runtime` segment exports.
+- Cache with `"use cache"` plus an explicit `cacheLife` profile from `next.config.ts` (`snapshot`, `feed`, `record`, `lookup`, `answer`, `paid`). Never `unstable_cache`, never `revalidate`/`dynamic`/`runtime` segment exports.
 - Paid or rate-limited work (Valyu calls, NVD, Wikidata) and the snapshot use `"use cache: remote"` so every serverless instance shares one entry.
 - A cached function must never reject: during prerendering a rejected `use cache` call fails the page even when the caller catches it. Return a `Fetched` result (`src/lib/fetched.ts`) or `null`, and call `cacheLife("minutes")` on the failure path so it retries soon instead of being pinned.
 - Pages with params or search params stay synchronous and await them inside a `<Suspense>` child; render date-dependent markup inside a `use cache` scope. `generateStaticParams` must return at least one entry (`src/lib/static-params.ts`).
@@ -29,3 +29,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - The dev server aborts a cache fill that stays silent for 10s (its hang probe), so `snapshot.ts` uses shorter budgets in development. Expect fewer incidents in `next dev` than in a build.
 - Article extractions are paid for once and kept for a month. When `ARTICLE_SCHEMA` changes meaning, bump `EXTRACTION_VERSION` in `src/lib/sources/incidents.ts` so cached extractions are read again.
 - CVE lookups go to CVE.org first (`getCveRecord`), then NVD. NVD without `NVD_API_KEY` allows 5 requests per 30 seconds, so keep per-CVE calls off NVD.
+- Per-id pages (`/cve/[id]`, `/incident/[id]` and their OG images) use the `record` profile and the tags from `src/lib/cache-tags.ts` (`cveTag`, `incidentTag`, `EPSS_TAG`). Their shared CVE data comes from `loadCve` (`src/lib/cve-page.ts`). Any new field these pages or cards render must go into `pageDigests` in `src/lib/revalidate/digests.ts`, or the page stays stale until the 6 hour ceiling.
+- `/api/cron/revalidate` (every 5 minutes) compares those digests with the last run's, kept in Upstash per deployment, and expires only the changed tags with `revalidateTag(tag, "max")`. It also expires `epss` when FIRST publishes a new model date. While the snapshot is degraded it compares only the KEV part of each CVE fingerprint (`kevChanges`). It stores what it saw in `after()`, never before the tags are queued, because Next sends queued tags only when the handler returns: storing first would lose the changes of a run stopped before then.
+- Never revalidate the `snapshot` tag: every page that reads the snapshot carries it, so it would expire the whole site.
+- Degraded inputs must choose `cacheLife("minutes")`: a snapshot with `snapshotDegraded` true, a failed CISA, CVE.org or FIRST lookup, a valid CVE ID with no record yet (both clear `loadCve`'s `complete`), or any `Fetched` failure. A long lifetime is only for a result built from healthy inputs.
+- Server components outside the live map must not read the snapshot in shared chrome (site bar, page shell, footer): it would tie every page to the snapshot's refresh. The site-bar ticker loads `/ticker.json` in the browser.

@@ -267,20 +267,33 @@ export function SituationRoom({ snapshot }: { snapshot: Snapshot }) {
   // A folded dock needs 40px for its restore pill, the 16px outer gutter and 16px breathing room.
   const tagBottom = patchDockFits ? (patchDockOpen ? DOCK : 72) : 16;
   // Space the panels cover, so the globe is framed in what is left (below the 68px nav).
-  const padding = mobile
-    ? {
-        left: 0,
-        right: 0,
-        top: navHeight,
-        bottom:
-          panelOpen || sidebarOpen ? Math.max(0, Math.min(viewport.h - navHeight - 8, Math.round(viewport.h * (panelOpen || sheetOpen ? 0.8 : 0.52)))) : 0,
-      }
-    : {
-        left: cinema ? 0 : sidebarInset,
-        right: panelOpen && !cinema ? Math.min(PANEL, Math.max(0, viewport.w - sidebarInset - 160)) : 0,
-        top: cinema ? 0 : navHeight,
-        bottom: cinema ? 0 : 96,
-      };
+  const padding = useMemo(
+    () =>
+      mobile
+        ? {
+            left: 0,
+            right: 0,
+            top: navHeight,
+            bottom:
+              panelOpen || sidebarOpen ? Math.max(0, Math.min(viewport.h - navHeight - 8, Math.round(viewport.h * (panelOpen || sheetOpen ? 0.8 : 0.52)))) : 0,
+          }
+        : {
+            left: cinema ? 0 : sidebarInset,
+            right: panelOpen && !cinema ? Math.min(PANEL, Math.max(0, viewport.w - sidebarInset - 160)) : 0,
+            top: cinema ? 0 : navHeight,
+            bottom: cinema ? 0 : 96,
+          },
+    [mobile, navHeight, panelOpen, sidebarOpen, sheetOpen, cinema, sidebarInset, viewport.h, viewport.w],
+  );
+  // Stable handlers, so the memoised Story skips the renders that hovering the globe causes.
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const toggleSheet = useCallback(() => setSheetOpen((open) => !open), []);
+  const onSearchFocus = useCallback(
+    (focused: boolean) => {
+      if (focused && mobile) setSheetOpen(true);
+    },
+    [mobile],
+  );
 
   return (
     <main
@@ -313,7 +326,7 @@ export function SituationRoom({ snapshot }: { snapshot: Snapshot }) {
           maximum={sidebarMax}
           onWidthChange={setSidebarWidth}
           sheetOpen={sheetOpen}
-          onSheetToggle={() => setSheetOpen((open) => !open)}
+          onSheetToggle={toggleSheet}
           cinema={cinema}
         >
           <Story
@@ -329,10 +342,8 @@ export function SituationRoom({ snapshot }: { snapshot: Snapshot }) {
             malware={snapshot.malware}
             outages={snapshot.outages}
             generatedAt={snapshot.generatedAt}
-            onClose={() => setSidebarOpen(false)}
-            onSearchFocus={(focused) => {
-              if (focused && mobile) setSheetOpen(true);
-            }}
+            onClose={closeSidebar}
+            onSearchFocus={onSearchFocus}
           />
         </MapSidebar>
 

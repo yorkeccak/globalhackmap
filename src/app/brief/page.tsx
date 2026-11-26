@@ -26,7 +26,7 @@ const SLACK_URL = "https://slack.valyu.ai";
 
 export async function generateMetadata(): Promise<Metadata> {
   "use cache";
-  cacheLife("feed");
+  cacheLife("snapshot");
   const [snapshot, kev] = await Promise.all([getSnapshot(), kevIndex()]);
   const digest = buildDigest(snapshot, kev);
   const title = `Daily brief, ${longDate(digest.date)}: everything that broke in the last 48 hours`;
@@ -86,7 +86,7 @@ function Item({ item }: { item: DigestItem }) {
 
 export default async function BriefPage() {
   "use cache";
-  cacheLife("feed");
+  cacheLife("snapshot");
   const [snapshot, kev] = await Promise.all([getSnapshot(), kevIndex()]);
   const digest = buildDigest(snapshot, kev);
   const url = `${SITE_URL}/brief`;

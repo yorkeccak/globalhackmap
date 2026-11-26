@@ -1,9 +1,9 @@
 "use client";
 
 import { ArrowCounterClockwise, ArrowUpRight, Sparkle, X } from "@phosphor-icons/react";
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 
+import { loadStreamdown, Streamdown } from "@/components/hud/streamdown";
 import { ValyuMark } from "@/components/icons/agents";
 import { startSignIn } from "@/lib/auth/client";
 import { event } from "@/lib/events";
@@ -32,11 +32,6 @@ function hostOf(url: string) {
     return url;
   }
 }
-
-// The markdown stack (streamdown, remark, rehype) is about a third of the home page's JavaScript and
-// only renders once an answer arrives, so it loads on demand.
-const loadStreamdown = () => import("streamdown").then((mod) => mod.Streamdown);
-const Streamdown = dynamic(loadStreamdown);
 
 async function fetchBrief(kind: Kind, id: string): Promise<{ ok: boolean; data: BriefResponse }> {
   // Fetch the renderer while the answer is being written, so it is ready when the answer lands.

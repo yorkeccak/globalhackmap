@@ -4,7 +4,9 @@ import { takeLimits } from "@/lib/http/rate-limit";
 
 import { type Fetched, settle, unwrap } from "@/lib/fetched";
 
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
+
+import { EPSS_TAG } from "@/lib/cache-tags";
 
 import type { MalwarePackage, Vuln } from "@/lib/types";
 import { withLastGood } from "@/lib/sources/last-good";
@@ -101,6 +103,26 @@ export async function getEpss(cves: string[]): Promise<Map<string, { epss: numbe
     }
   }
   return out;
+}
+
+/**
+ * One CVE's EPSS score for its page, kept until FIRST publishes a new model date (the revalidate cron
+ * expires the tag). Null when FIRST has no score for it; a failed request is kept for minutes.
+ */
+export async function getEpssScore(cve: string): Promise<Fetched<{ epss: number; percentile: number } | null>> {
+  "use cache: remote";
+  cacheTag(EPSS_TAG);
+  const result = await settle(async () => {
+    if (!/^CVE-\d{4}-\d+$/.test(cve)) return null;
+    const res = await fetch(`https://api.first.org/data/v1/epss?cve=${cve}`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw new Error(`EPSS ${res.status}`);
+    const json = (await res.json()) as { data?: EpssRow[] };
+    const row = json.data?.find((item) => item.cve === cve);
+    return row ? { epss: Number(row.epss), percentile: Number(row.percentile) } : null;
+  });
+  if (result.ok) cacheLife("days");
+  else cacheLife("minutes");
+  return result;
 }
 
 interface NvdCve {
@@ -297,7 +319,8 @@ async function getCveRecordFetched(cveId: string): Promise<Fetched<Vuln | null>>
       return nvdLookup(cveId);
     }
   });
-  if (result.ok) cacheLife("lookup");
+  // A missing record may be published within the hour, so only a found one is kept for hours.
+  if (result.ok && result.value) cacheLife("lookup");
   else cacheLife("minutes");
   return result;
 }

@@ -23,20 +23,30 @@ export async function resolveReviewedAdvisories(
   lookup: (cve: string) => Promise<Vuln | null>,
   entries: readonly { cve: string; published: string; source: string; featuredFrom?: string }[] = registry,
 ): Promise<Vuln[]> {
-  const valid = entries.filter((entry) => {
-    if (!entry || !/^CVE-\d{4}-\d{4,}$/.test(entry.cve) || !validPublication(entry.published, now)) return false;
-    if (!eligible(entry.featuredFrom === undefined ? entry.published : entry.featuredFrom, now)) return false;
-    try { return new URL(entry.source).protocol === "https:"; } catch { return false; }
-  }).sort((a, b) => b.published.localeCompare(a.published));
+  const valid = entries
+    .filter((entry) => {
+      if (!entry || !/^CVE-\d{4}-\d{4,}$/.test(entry.cve) || !validPublication(entry.published, now)) return false;
+      if (!eligible(entry.featuredFrom === undefined ? entry.published : entry.featuredFrom, now)) return false;
+      try {
+        return new URL(entry.source).protocol === "https:";
+      } catch {
+        return false;
+      }
+    })
+    .sort((a, b) => b.published.localeCompare(a.published));
   const unique = [...new Map(valid.map((entry) => [entry.cve, entry])).values()].slice(0, REVIEWED_LIMIT);
-  const results = await Promise.all(unique.map(async (entry) => {
-    try {
-      const record = await lookup(entry.cve);
-      if (!record || record.cve !== entry.cve || !validPublication(record.published, now)) return null;
-      if (entry.featuredFrom === undefined && !eligible(record.published, now)) return null;
-      return { ...record, references: [...new Set([entry.source, ...record.references])] };
-    } catch { return null; }
-  }));
+  const results = await Promise.all(
+    unique.map(async (entry) => {
+      try {
+        const record = await lookup(entry.cve);
+        if (!record || record.cve !== entry.cve || !validPublication(record.published, now)) return null;
+        if (entry.featuredFrom === undefined && !eligible(record.published, now)) return null;
+        return { ...record, references: [...new Set([entry.source, ...record.references])] };
+      } catch {
+        return null;
+      }
+    }),
+  );
   return results.filter((record): record is Vuln => record !== null);
 }
 

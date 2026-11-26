@@ -2,8 +2,8 @@
 
 import { ArrowUpRight, FilePdf, MagnifyingGlass } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
-import { Streamdown } from "streamdown";
 
+import { loadStreamdown, Streamdown } from "@/components/hud/streamdown";
 import { ValyuMark } from "@/components/icons/agents";
 import { startSignIn, useAuth } from "@/lib/auth/client";
 import { event } from "@/lib/events";
@@ -51,6 +51,8 @@ function Research({ kind, id, subject, items, title, blurb }: ResearchProps) {
   const key = `${STORAGE}${kind}:${id}`;
 
   const poll = (taskId: string) => {
+    // Research takes minutes; fetch the report renderer now so it is ready when the report lands.
+    void loadStreamdown();
     window.clearTimeout(timer.current);
     const tick = async () => {
       try {

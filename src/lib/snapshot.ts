@@ -104,7 +104,9 @@ async function buildSnapshot(): Promise<Snapshot> {
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 450);
 
-  const kevIds = new Set(kevAll.map((vuln) => vuln.cve));
+  // First entry per CVE, as a search of the catalogue in order would find.
+  const kevById = new Map<string, Vuln>();
+  for (const vuln of kevAll) if (!kevById.has(vuln.cve)) kevById.set(vuln.cve, vuln);
   const kevRecent = kevAll.slice(0, 40);
 
   // CVEs named in news articles and incidents count as "in the news".
@@ -114,7 +116,7 @@ async function buildSnapshot(): Promise<Snapshot> {
   const topMentioned = [...mentions.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30);
   const mentioned: Vuln[] = await Promise.all(
     topMentioned.map(async ([cve, count]) => {
-      const kev = kevAll.find((vuln) => vuln.cve === cve);
+      const kev = kevById.get(cve);
       if (kev) return { ...kev, newsCount: count };
       if (known.has(cve)) return { ...known.get(cve)!, newsCount: count };
       const record = await getCveRecord(cve).catch(() => null);
@@ -126,7 +128,7 @@ async function buildSnapshot(): Promise<Snapshot> {
 
   const discovered = mergeVulns([mentioned, nvdCritical, cveListCritical, ghsaCritical]);
   const trendingRaw = mergeVulns([reviewed, discovered]).map((vuln) => {
-    const kev = kevAll.find((entry) => entry.cve === vuln.cve);
+    const kev = kevById.get(vuln.cve);
     return kev
       ? {
           ...vuln,
@@ -159,12 +161,15 @@ async function buildSnapshot(): Promise<Snapshot> {
   const kev = kevRecent.map(withEpss);
   const kevDate = (vuln: Vuln) => (vuln.kevAdded ? `${vuln.kevAdded}T00:00:00Z` : undefined);
   const freshAt = (vuln: Vuln) => (recent(kevDate(vuln), 7) ? kevDate(vuln)! : (vuln.published ?? ""));
-  const fresh = reserveReviewedMembership(mergeVulns([
-    trendingRaw.filter((vuln) => reviewed.some((entry) => entry.cve === vuln.cve)).map(withEpss),
-    kev.filter((vuln) => recent(kevDate(vuln), 7)),
-    trendingRaw.filter((vuln) => vuln.severity === "CRITICAL" && recent(vuln.published, 3)).map(withEpss),
-  ])
-    .sort((a, b) => freshAt(b).localeCompare(freshAt(a))), reviewed, 40);
+  const fresh = reserveReviewedMembership(
+    mergeVulns([
+      trendingRaw.filter((vuln) => reviewed.some((entry) => entry.cve === vuln.cve)).map(withEpss),
+      kev.filter((vuln) => recent(kevDate(vuln), 7)),
+      trendingRaw.filter((vuln) => vuln.severity === "CRITICAL" && recent(vuln.published, 3)).map(withEpss),
+    ]).sort((a, b) => freshAt(b).localeCompare(freshAt(a))),
+    reviewed,
+    40,
+  );
   const last7 = incidents.filter((incident) => recent(incident.date, 7));
 
   return {
@@ -183,7 +188,7 @@ async function buildSnapshot(): Promise<Snapshot> {
       claimed7d: last7.filter((incident) => incident.status === "claimed").length,
       countries7d: new Set(last7.map((incident) => incident.country)).size,
       kevAdded30d: kevAll.filter((vuln) => recent(kevDate(vuln), 30)).length,
-      criticalCves72h: discovered.filter((vuln) => vuln.severity === "CRITICAL" && recent(vuln.published, 3) && !kevIds.has(vuln.cve)).length,
+      criticalCves72h: discovered.filter((vuln) => vuln.severity === "CRITICAL" && recent(vuln.published, 3) && !kevById.has(vuln.cve)).length,
       malware72h: malware.filter((item) => recent(item.published, 3)).length,
       outagesActive: outages.filter((outage) => !outage.end).length,
     },
@@ -202,10 +207,14 @@ export async function getSnapshot(): Promise<Snapshot> {
   const snapshot = await buildSnapshot();
   // A picture built while several upstreams were down is kept for minutes, not the full refresh, so a
   // bad moment upstream does not pin a near-empty map for every visitor.
-  const down = Object.values(snapshot.feeds).filter((feed) => !feed.ok).length;
-  if (down >= 3) cacheLife("minutes");
+  if (snapshotDegraded(snapshot)) cacheLife("minutes");
   else cacheLife("snapshot");
   return snapshot;
+}
+
+/** Three or more feeds down: the picture may be missing whole sections, so nothing built on it is kept long. */
+export function snapshotDegraded(snapshot: Snapshot): boolean {
+  return Object.values(snapshot.feeds).filter((feed) => !feed.ok).length >= 3;
 }
 
 /**

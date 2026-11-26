@@ -5,11 +5,12 @@ const HOUR = 60 * MINUTE;
 
 /** Buckets ignore query strings and resource IDs, so cycling CVEs cannot reset an allowance. */
 export function requestLimits(path: string, method: string, ip: string): Limit[] {
-  if (!path.startsWith("/api/"))
+  if (path.startsWith("/fix/"))
     return [
       { key: `lookup-burst:${ip}`, limit: 30, windowMs: MINUTE },
       { key: `lookup-hour:${ip}`, limit: 180, windowMs: HOUR },
     ];
+  if (!path.startsWith("/api/")) return [];
   const limits: Limit[] = [{ key: `api:${ip}`, limit: 180, windowMs: MINUTE }];
   const add = (name: string, limit: number, windowMs = MINUTE) => limits.push({ key: `${name}:${ip}`, limit, windowMs });
   if (path === "/api/brief") {
