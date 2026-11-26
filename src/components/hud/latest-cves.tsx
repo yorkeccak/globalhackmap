@@ -1,35 +1,38 @@
-import { Suspense } from "react";
+"use client";
+
+import { useEffect, useState } from "react";
 
 import { CveTicker, type TickerVuln } from "@/components/hud/cve-ticker";
 import { TopBar } from "@/components/hud/top-bar";
-import { getSnapshot } from "@/lib/snapshot";
 
-/** The new-CVE banner on pages outside the live map, read from the shared cached snapshot. */
-async function LatestCves() {
-  const { fresh, generatedAt } = await getSnapshot();
-  // Only what the ticker draws, so every page carries a few kilobytes rather than full advisories.
-  const items: TickerVuln[] = fresh.map(({ cve, vendor, product, cvss, kev, ransomware, kevAdded, published }) => ({
-    cve,
-    vendor,
-    product,
-    cvss,
-    kev,
-    ransomware,
-    kevAdded,
-    published,
-  }));
-  return <CveTicker items={items} generatedAt={generatedAt} />;
+interface Ticker {
+  generatedAt: string;
+  items: TickerVuln[];
+}
+
+/**
+ * The new-CVE banner on pages outside the live map, loaded after the page from /ticker.json. Keeping
+ * it out of the HTML means a page does not have to be rebuilt each time the snapshot changes.
+ */
+function LatestCves() {
+  const [ticker, setTicker] = useState<Ticker | null | undefined>(undefined);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/ticker.json", { signal: controller.signal })
+      .then((res) => (res.ok ? (res.json() as Promise<Ticker>) : null))
+      .then((data) => setTicker(data?.items?.length ? data : null))
+      .catch(() => {
+        if (!controller.signal.aborted) setTicker(null);
+      });
+    return () => controller.abort();
+  }, []);
+  // Holds the banner's height while it loads, so the page below does not move when it arrives.
+  if (ticker === undefined) return <div className="h-10" aria-hidden />;
+  if (!ticker) return null;
+  return <CveTicker items={ticker.items} generatedAt={ticker.generatedAt} />;
 }
 
 /** The site bar for every page outside the situation room, with the new-CVE banner. */
 export function SiteBar() {
-  return (
-    <TopBar
-      ticker={
-        <Suspense fallback={null}>
-          <LatestCves />
-        </Suspense>
-      }
-    />
-  );
+  return <TopBar ticker={<LatestCves />} />;
 }

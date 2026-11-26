@@ -50,7 +50,7 @@ function suggestionsFrom(incidents: Incident[]): Suggestion[] {
 /** Everything the check needs from the live picture, cached so the page's shell carries the full UI. */
 async function checkData() {
   "use cache";
-  cacheLife("feed");
+  cacheLife("snapshot");
   const [snapshot, kev] = await Promise.all([getSnapshot().catch(() => null), getKevCatalog().catch(() => null)]);
   const incidents: CheckIncident[] = (snapshot?.incidents ?? []).map((incident) => ({
     id: incident.id,

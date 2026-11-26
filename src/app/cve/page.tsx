@@ -97,7 +97,7 @@ function Section({ id, title, note, items, now }: { id: string; title: string; n
 /** The CVE index: advisories to review and confirmed exploitation, with original publication dates. */
 export default async function CveIndex() {
   "use cache";
-  cacheLife("feed");
+  cacheLife("snapshot");
   const snapshot = await getSnapshot();
   const now = Date.parse(snapshot.generatedAt);
   const exploited = snapshot.kev.filter((vuln) => listedThisWeek(vuln, now));
