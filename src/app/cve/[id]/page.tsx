@@ -1,6 +1,6 @@
 import { ArrowRight, ArrowUpRight, BookOpenText, GlobeHemisphereWest } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Suspense } from "react";
@@ -19,13 +19,13 @@ import { PageSection } from "@/components/pages/section";
 import { ShareRow } from "@/components/pages/share-row";
 import { PRIMARY, ROW } from "@/components/pages/styles";
 import { Eyebrow, Stat, TickMeter, Tile, TileHead, statCell, statGrid } from "@/components/pages/tile";
-import { findVuln, isCveId } from "@/lib/lookup";
+import { cveTag } from "@/lib/cache-tags";
+import { loadCve } from "@/lib/cve-page";
+import { isCveId } from "@/lib/lookup";
 import { type ExploitTone, clean, cveDescription, cveTitle, epssText, exploitTone, hostOf, longDate, productLabel } from "@/lib/og/copy";
-import { kevIndex, withKev } from "@/lib/og/kev";
 import { cveMentions, isInSnapshot } from "@/lib/og/select";
 import { SITE_URL } from "@/lib/site";
-import { getSnapshot } from "@/lib/snapshot";
-import { getEpss } from "@/lib/sources/vulns";
+import { getSnapshot, snapshotDegraded } from "@/lib/snapshot";
 import { cveParams } from "@/lib/static-params";
 import type { Vuln } from "@/lib/types";
 import { cn, decodeParam } from "@/lib/utils";
@@ -38,30 +38,18 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
-/** Any valid CVE: the snapshot first, then the full KEV catalogue and NVD, with EPSS filled in. */
-async function load(id: string): Promise<{ vuln: Vuln; kevKnown: boolean } | null> {
-  "use cache";
-  cacheLife("feed");
-  if (!isCveId(id)) return null;
-  const [found, kev] = await Promise.all([findVuln(id).catch(() => null), kevIndex()]);
-  if (!found) return null;
-  const vuln = withKev(found, kev);
-  const kevKnown = kev !== null;
-  if (vuln.epss !== undefined) return { vuln, kevKnown };
-  const score = (await getEpss([id]).catch(() => null))?.get(id);
-  return { vuln: score ? { ...vuln, epss: score.epss, epssPercentile: score.percentile } : vuln, kevKnown };
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return metadataFor(decodeParam((await params).id).toUpperCase());
 }
 
 async function metadataFor(id: string): Promise<Metadata> {
   "use cache";
-  cacheLife("feed");
-  const loaded = await load(id);
-  if (!loaded) return { title: "Vulnerability not found", robots: { index: false } };
+  cacheTag(cveTag(id));
+  const [loaded, snapshot] = await Promise.all([loadCve(id), getSnapshot()]);
+  if (loaded.complete && !snapshotDegraded(snapshot)) cacheLife("record");
+  else cacheLife("minutes");
   const { vuln, kevKnown } = loaded;
+  if (!vuln) return { title: "Vulnerability not found", robots: { index: false } };
   const title = cveTitle(vuln);
   const description = cveDescription(vuln, kevKnown);
   const url = `/cve/${vuln.cve}`;
@@ -106,7 +94,7 @@ function percentileText(percentile?: number): string | null {
   return percentile >= 0.999 ? "In the top 0.1% of all CVEs" : `Higher than ${Math.floor(percentile * 100)}% of all CVEs`;
 }
 
-/** The shell renders at once; the CVE streams in, and is cached per URL after its first visit. */
+/** The shell renders at once; the CVE streams in, and is cached per URL until its data changes. */
 export default function CvePage({ params }: Props) {
   return (
     <Suspense fallback={<PageFallback label="Loading the vulnerability" />}>
@@ -119,8 +107,8 @@ async function CveRoute({ params }: Props) {
   const raw = decodeParam((await params).id);
   const id = raw.toUpperCase();
   if (raw !== id && isCveId(id)) permanentRedirect(`/cve/${id}`);
-  const loaded = await load(id);
-  if (!loaded) notFound();
+  const { vuln } = await loadCve(id);
+  if (!vuln) notFound();
   // The researched explainer streams on its own, so a cold one never holds up the rest of the page.
   return (
     <CveView
@@ -128,20 +116,22 @@ async function CveRoute({ params }: Props) {
       affected={
         // Keyed: the slot comes back through the cache inside a children array.
         <Suspense key="affected" fallback={<AffectedPending />}>
-          <Affected vuln={loaded.vuln} />
+          <Affected cve={vuln.cve} vendor={vuln.vendor} product={vuln.product} />
         </Suspense>
       }
     />
   );
 }
 
-/** Everything but the explainer, cached as rendered HTML so dates and copy are computed once per refresh. */
+/** Everything but the explainer, cached as rendered HTML until the CVE's data changes. */
 async function CveView({ id, affected }: { id: string; affected: React.ReactNode }) {
   "use cache";
-  cacheLife("feed");
-  const [loaded, snapshot] = await Promise.all([load(id), getSnapshot()]);
-  if (!loaded) return null;
+  cacheTag(cveTag(id));
+  const [loaded, snapshot] = await Promise.all([loadCve(id), getSnapshot()]);
+  if (loaded.complete && !snapshotDegraded(snapshot)) cacheLife("record");
+  else cacheLife("minutes");
   const { vuln, kevKnown } = loaded;
+  if (!vuln) return null;
 
   const url = `${SITE_URL}/cve/${vuln.cve}`;
   const product = productLabel(vuln);
