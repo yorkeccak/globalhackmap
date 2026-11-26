@@ -5,7 +5,7 @@ import { after, NextResponse } from "next/server";
 import { EPSS_TAG } from "@/lib/cache-tags";
 import { isAuthorizedCron } from "@/lib/http/cron";
 import { upstashCredentials } from "@/lib/http/upstash";
-import { changedTags, liveTags, pageDigests } from "@/lib/revalidate/digests";
+import { changedTags, kevChanges, liveTags, pageDigests } from "@/lib/revalidate/digests";
 import { getKevCatalog, getSnapshot, snapshotDegraded } from "@/lib/snapshot";
 
 export const maxDuration = 60;
@@ -55,14 +55,47 @@ export async function GET(request: Request) {
 
   const started = Date.now();
   const store = redis();
-  const [snapshot, kev, epss] = await Promise.all([getSnapshot(), getKevCatalog().catch(() => null), store ? epssDate() : Promise.resolve(null)]);
-  // A picture with whole feeds missing would expire healthy pages into thin ones. Keep the stored map,
-  // so the next healthy picture is compared with the last healthy one.
-  if (snapshotDegraded(snapshot)) return NextResponse.json({ mode: "degraded", changed: 0, total: 0 });
+  const [snapshot, catalog, epss] = await Promise.all([getSnapshot(), getKevCatalog().catch(() => null), store ? epssDate() : Promise.resolve(null)]);
+  const kev = catalog?.length ? catalog : null;
+  const writes: [key: string, value: unknown][] = [];
+  // Stores what this run saw once its queued tags are on their way, unless the run was slow.
+  const storeLater = () => {
+    if (!store || !writes.length || Date.now() - started >= STORE_DEADLINE_MS) return;
+    after(async () => {
+      for (const [key, value] of writes) {
+        try {
+          await store.set(key, value, { ex: KEEP_SECONDS });
+        } catch {
+          // The next run compares with the older state and expires these tags again.
+        }
+      }
+    });
+  };
+
+  // A picture with whole feeds missing would expire healthy pages into thin ones. Only the KEV catalogue,
+  // which does not depend on it, is compared, so exploited status and deadlines keep moving. The rest of
+  // the stored map stays, so the next healthy picture is compared with the last healthy one.
+  if (snapshotDegraded(snapshot)) {
+    let changed: string[] = [];
+    if (store && kev) {
+      try {
+        const stored = await store.get<Record<string, string>>(DIGESTS_KEY);
+        if (stored) {
+          const result = kevChanges(new Map(Object.entries(stored)), kev);
+          changed = result.changed;
+          if (changed.length) writes.push([DIGESTS_KEY, Object.fromEntries(result.next)]);
+        }
+      } catch {
+        // Never echo the Redis response, URL or credentials. The next run compares again.
+      }
+    }
+    for (const tag of changed) revalidateTag(tag, "max");
+    storeLater();
+    return NextResponse.json({ mode: "degraded", changed: changed.length, total: 0 });
+  }
 
   const next = pageDigests(snapshot, kev);
   const live = liveTags(snapshot);
-  const writes: [key: string, value: unknown][] = [];
 
   let mode: "diff" | "initial" | "fallback" = "fallback";
   let changed: string[] = [...live];
@@ -102,17 +135,7 @@ export async function GET(request: Request) {
     }
   }
 
-  if (store && writes.length && Date.now() - started < STORE_DEADLINE_MS) {
-    after(async () => {
-      for (const [key, value] of writes) {
-        try {
-          await store.set(key, value, { ex: KEEP_SECONDS });
-        } catch {
-          // The next run compares with the older state and expires these tags again.
-        }
-      }
-    });
-  }
+  storeLater();
 
   return NextResponse.json({ mode, changed: changed.length, total: next.size });
 }
