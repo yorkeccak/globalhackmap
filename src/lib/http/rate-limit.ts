@@ -5,6 +5,8 @@ import { isIP } from "node:net";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
+import { upstashCredentials } from "@/lib/http/upstash";
+
 export interface Limit {
   key: string;
   limit: number;
@@ -35,14 +37,12 @@ function localLimit(limits: Limit[]): LimitResult {
 /** Official Upstash counters shared by every instance. Production never falls back to local memory. */
 export async function takeLimits(limits: Limit[]): Promise<LimitResult> {
   if (!limits.length) return { allowed: true };
-  // Vercel's integration can expose the KV_* names. Keep credential pairs together.
-  const explicit = Boolean(process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_REST_TOKEN);
-  const url = explicit ? process.env.UPSTASH_REDIS_REST_URL : process.env.KV_REST_API_URL;
-  const token = explicit ? process.env.UPSTASH_REDIS_REST_TOKEN : process.env.KV_REST_API_TOKEN;
-  if (!url || !token) {
+  const credentials = upstashCredentials();
+  if (!credentials) {
     if (process.env.NODE_ENV !== "production") return localLimit(limits);
     return { allowed: false, retryAfter: 60, unavailable: true };
   }
+  const { url, token } = credentials;
   try {
     if (new URL(url).protocol !== "https:") throw new Error("Invalid limiter URL");
     for (const item of limits) {
