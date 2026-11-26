@@ -205,10 +205,14 @@ export async function getSnapshot(): Promise<Snapshot> {
   const snapshot = await buildSnapshot();
   // A picture built while several upstreams were down is kept for minutes, not the full refresh, so a
   // bad moment upstream does not pin a near-empty map for every visitor.
-  const down = Object.values(snapshot.feeds).filter((feed) => !feed.ok).length;
-  if (down >= 3) cacheLife("minutes");
+  if (snapshotDegraded(snapshot)) cacheLife("minutes");
   else cacheLife("snapshot");
   return snapshot;
+}
+
+/** Three or more feeds down: the picture may be missing whole sections, so nothing built on it is kept long. */
+export function snapshotDegraded(snapshot: Snapshot): boolean {
+  return Object.values(snapshot.feeds).filter((feed) => !feed.ok).length >= 3;
 }
 
 /**
