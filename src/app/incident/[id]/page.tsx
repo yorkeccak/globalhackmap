@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowUpRight, GlobeHemisphereWest, ShieldCheck } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -21,6 +21,7 @@ import { PageSection } from "@/components/pages/section";
 import { ShareRow } from "@/components/pages/share-row";
 import { CHIP, PRIMARY, ROW, SECONDARY } from "@/components/pages/styles";
 import { Eyebrow, Stat, Tile, statCell, statGrid } from "@/components/pages/tile";
+import { incidentTag } from "@/lib/cache-tags";
 import { incidentPrompt } from "@/lib/deeplinks";
 import { STATUS_LABEL, TYPE_LABEL } from "@/lib/format";
 import { guidanceFor } from "@/lib/guidance";
@@ -40,7 +41,7 @@ import {
 import { project, viewAround } from "@/lib/og/map";
 import { relatedIncidents } from "@/lib/og/select";
 import { REPO_URL, SITE_URL } from "@/lib/site";
-import { getSnapshot } from "@/lib/snapshot";
+import { getSnapshot, snapshotDegraded } from "@/lib/snapshot";
 import { incidentParams } from "@/lib/static-params";
 import type { Incident } from "@/lib/types";
 import { cn, decodeParam } from "@/lib/utils";
@@ -53,10 +54,16 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
+/**
+ * Kept until the incident's tag is expired. An incident that has aged out stays "not found" as long; the
+ * revalidate cron expires its tag if it comes back.
+ */
 async function load(id: string): Promise<Incident | undefined> {
   "use cache";
-  cacheLife("feed");
+  cacheTag(incidentTag(id));
   const snapshot = await getSnapshot();
+  if (snapshotDegraded(snapshot)) cacheLife("minutes");
+  else cacheLife("record");
   return snapshot.incidents.find((incident) => incident.id === id);
 }
 
@@ -66,8 +73,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 async function metadataFor(id: string): Promise<Metadata> {
   "use cache";
-  cacheLife("feed");
-  const incident = await load(id);
+  cacheTag(incidentTag(id));
+  const [incident, snapshot] = await Promise.all([load(id), getSnapshot()]);
+  if (snapshotDegraded(snapshot)) cacheLife("minutes");
+  else cacheLife("record");
   if (!incident) return { title: "Incident no longer on the map", robots: { index: false } };
   const title = incidentTitle(incident);
   const description = incidentDescription(incident);
@@ -102,7 +111,7 @@ function sourceTitle(source: Incident["sources"][number]): string {
   return source.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 }
 
-/** The shell renders at once; the incident streams in, and is cached per URL after its first visit. */
+/** The shell renders at once; the incident streams in, and is cached per URL until the incident changes. */
 export default function IncidentPage({ params }: Props) {
   return (
     <Suspense fallback={<PageFallback label="Loading the incident" />}>
@@ -117,11 +126,13 @@ async function IncidentRoute({ params }: Props) {
   return <IncidentView id={id} />;
 }
 
-/** The whole dossier, cached as rendered HTML so dates and copy are computed once per refresh. */
+/** The whole dossier, cached as rendered HTML until the incident or its related incidents change. */
 async function IncidentView({ id }: { id: string }) {
   "use cache";
-  cacheLife("feed");
+  cacheTag(incidentTag(id));
   const snapshot = await getSnapshot();
+  if (snapshotDegraded(snapshot)) cacheLife("minutes");
+  else cacheLife("record");
   const incident = snapshot.incidents.find((item) => item.id === id);
   if (!incident) return null;
 
