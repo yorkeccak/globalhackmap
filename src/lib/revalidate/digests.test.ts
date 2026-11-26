@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { changedTags, pageDigests } from "@/lib/revalidate/digests";
+import { changedTags, kevChanges, pageDigests } from "@/lib/revalidate/digests";
 import type { Incident, Snapshot, Vuln } from "@/lib/types";
 
 // A CVE or incident page is expired by tag only when its fingerprint changes, so a field the pages
@@ -98,5 +98,22 @@ describe("page digests", () => {
     after.snapshot.incidents[0].cves = [];
     after.kev.shift();
     expect(changedTags(pageDigests(before.snapshot, before.kev), pageDigests(after.snapshot, after.kev))).toContain("cve:CVE-2026-0001");
+  });
+});
+
+// While the picture is degraded only the KEV catalogue is compared, so a CVE CISA adds still gets its
+// exploited status and deadline within one run, and the next healthy run must not expire it twice.
+describe("KEV changes in a degraded run", () => {
+  it("finds added and changed entries only, and leaves nothing for the next healthy run", () => {
+    const before = fixture();
+    const after = fixture();
+    after.kev[0].ransomware = true;
+    after.kev[1].kevDue = "2026-12-30";
+    after.kev.push(vuln("CVE-2026-0003", { kev: true, kevAdded: "2026-11-26" }));
+    const previous = pageDigests(before.snapshot, before.kev);
+    expect(kevChanges(previous, before.kev).changed).toEqual([]);
+    const { changed, next } = kevChanges(previous, after.kev);
+    expect(changed.sort()).toEqual(["cve:CVE-2020-0002", "cve:CVE-2026-0001", "cve:CVE-2026-0003"]);
+    expect(changedTags(next, pageDigests(after.snapshot, after.kev))).toEqual([]);
   });
 });
