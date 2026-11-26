@@ -35,8 +35,9 @@ export async function proxy(request: NextRequest) {
   }
   // Authenticated scheduled jobs must keep working during a limiter outage.
   const scheduled = path.startsWith("/api/cron/") && isAuthorizedCron(request);
-  const lookup = /^\/(?:cve|fix|incident|country)\/[^/]+/.test(path);
-  if ((path.startsWith("/api/") && !scheduled) || lookup) {
+  // Runbooks are the only page lookups with a per-visitor budget; CVE and country pages are cached.
+  const runbook = /^\/fix\/[^/]+/.test(path);
+  if ((path.startsWith("/api/") && !scheduled) || runbook) {
     const response = limitResponse(await takeLimits(requestLimits(path, request.method, clientIp(request))));
     if (response) return response;
   }
@@ -54,6 +55,16 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+/**
+ * Canonical CVE pages and OG images (with their RSC and segment-prefetch forms), incident pages and
+ * the cached, parameterless GET APIs need nothing from the proxy, so it does not run for them.
+ * Lowercase, malformed and escaped CVE IDs still match and get their 308, 404 or 400.
+ */
 export const config = {
-  matcher: ["/cve/:path*", "/incident/:path*", "/country/:path*", "/fix/:path*", "/api/:path*"],
+  matcher: [
+    "/cve/((?!CVE-\\d{4}-\\d{4,7}(?:/opengraph-image)?(?:\\.rsc|\\.segments/[^%]+\\.segment\\.rsc)?$).*)",
+    "/country/:path*",
+    "/fix/:path*",
+    "/api/((?!logo$|snapshot$|patch$).*)",
+  ],
 };
