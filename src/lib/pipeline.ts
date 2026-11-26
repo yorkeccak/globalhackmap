@@ -123,9 +123,7 @@ function keysOf(item: Candidate): string[] {
 }
 
 /** Same victim if a name or domain key matches, or one name extends the other ("quest" and "questdiagnostics"). */
-function sameVictim(a: Candidate, b: Candidate): boolean {
-  const ka = keysOf(a);
-  const kb = keysOf(b);
+function sameVictim(ka: string[], kb: string[]): boolean {
   for (const x of ka) {
     for (const y of kb) {
       if (x === y) return true;
@@ -140,10 +138,12 @@ function sameVictim(a: Candidate, b: Candidate): boolean {
 function clusterLocated(items: Located[]): Located[][] {
   const parent = items.map((_, i) => i);
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  // Keys and timestamps once per item, not once per pair.
+  const facts = items.map((item) => ({ keys: keysOf(item), t: Date.parse(item.date) }));
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
-      if (Math.abs(Date.parse(items[i].date) - Date.parse(items[j].date)) > 14 * 86_400_000) continue;
-      if (sameVictim(items[i], items[j])) parent[find(i)] = find(j);
+      if (Math.abs(facts[i].t - facts[j].t) > 14 * 86_400_000) continue;
+      if (sameVictim(facts[i].keys, facts[j].keys)) parent[find(i)] = find(j);
     }
   }
   const groups = new Map<number, Located[]>();
