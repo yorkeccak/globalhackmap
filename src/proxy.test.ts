@@ -11,8 +11,7 @@ const runs = (url: string) => unstable_doesMiddlewareMatch({ config, nextConfig:
 // for an ID that cannot exist, and one that skips the paid APIs would drop their per-IP limits.
 describe("proxy matcher", () => {
   it.each([
-    "/cve/CVE-2021-44228",
-    "/cve/CVE-2024-1234567",
+    "/cve/CVE-2024-1234567.rsc",
     "/cve/CVE-2021-44228/opengraph-image",
     "/cve/CVE-2021-44228.rsc",
     "/cve/CVE-2021-44228.segments/_tree.segment.rsc",
@@ -24,6 +23,8 @@ describe("proxy matcher", () => {
   ])("skips %s", (url) => expect(runs(url)).toBe(false));
 
   it.each([
+    // Vercel ignores case when matching, so the HTML form runs the proxy to redirect lowercase IDs.
+    "/cve/CVE-2021-44228",
     "/cve/cve-2021-44228",
     "/cve/cve-2021-44228.rsc",
     "/cve/CVE-1",

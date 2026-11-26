@@ -56,13 +56,14 @@ export async function proxy(request: NextRequest) {
 }
 
 /**
- * Canonical CVE pages and OG images (with their RSC and segment-prefetch forms), incident pages and
- * the cached, parameterless GET APIs need nothing from the proxy, so it does not run for them.
- * Lowercase, malformed and escaped CVE IDs still match and get their 308, 404 or 400.
+ * Canonical CVE OG images, the RSC and segment-prefetch forms of CVE pages, incident pages and the
+ * cached, parameterless GET APIs need nothing from the proxy, so it does not run for them. Vercel
+ * matches these patterns without regard to case, so the HTML form of every CVE page still runs it:
+ * that is where a lowercase ID gets its 308. Malformed and escaped IDs still get their 404 or 400.
  */
 export const config = {
   matcher: [
-    "/cve/((?!CVE-\\d{4}-\\d{4,7}(?:/opengraph-image)?(?:\\.rsc|\\.segments/[^%]+\\.segment\\.rsc)?$).*)",
+    "/cve/((?!CVE-\\d{4}-\\d{4,7}(?:/opengraph-image(?:\\.rsc|\\.segments/[^%]+\\.segment\\.rsc)?|\\.rsc|\\.segments/[^%]+\\.segment\\.rsc)$).*)",
     "/country/:path*",
     "/fix/:path*",
     "/api/((?!logo$|snapshot$|patch$).*)",
