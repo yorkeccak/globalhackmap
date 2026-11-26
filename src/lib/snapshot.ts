@@ -104,7 +104,9 @@ async function buildSnapshot(): Promise<Snapshot> {
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 450);
 
-  const kevIds = new Set(kevAll.map((vuln) => vuln.cve));
+  // First entry per CVE, as a search of the catalogue in order would find.
+  const kevById = new Map<string, Vuln>();
+  for (const vuln of kevAll) if (!kevById.has(vuln.cve)) kevById.set(vuln.cve, vuln);
   const kevRecent = kevAll.slice(0, 40);
 
   // CVEs named in news articles and incidents count as "in the news".
@@ -114,7 +116,7 @@ async function buildSnapshot(): Promise<Snapshot> {
   const topMentioned = [...mentions.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30);
   const mentioned: Vuln[] = await Promise.all(
     topMentioned.map(async ([cve, count]) => {
-      const kev = kevAll.find((vuln) => vuln.cve === cve);
+      const kev = kevById.get(cve);
       if (kev) return { ...kev, newsCount: count };
       if (known.has(cve)) return { ...known.get(cve)!, newsCount: count };
       const record = await getCveRecord(cve).catch(() => null);
@@ -126,7 +128,7 @@ async function buildSnapshot(): Promise<Snapshot> {
 
   const discovered = mergeVulns([mentioned, nvdCritical, cveListCritical, ghsaCritical]);
   const trendingRaw = mergeVulns([reviewed, discovered]).map((vuln) => {
-    const kev = kevAll.find((entry) => entry.cve === vuln.cve);
+    const kev = kevById.get(vuln.cve);
     return kev
       ? {
           ...vuln,
@@ -186,7 +188,7 @@ async function buildSnapshot(): Promise<Snapshot> {
       claimed7d: last7.filter((incident) => incident.status === "claimed").length,
       countries7d: new Set(last7.map((incident) => incident.country)).size,
       kevAdded30d: kevAll.filter((vuln) => recent(kevDate(vuln), 30)).length,
-      criticalCves72h: discovered.filter((vuln) => vuln.severity === "CRITICAL" && recent(vuln.published, 3) && !kevIds.has(vuln.cve)).length,
+      criticalCves72h: discovered.filter((vuln) => vuln.severity === "CRITICAL" && recent(vuln.published, 3) && !kevById.has(vuln.cve)).length,
       malware72h: malware.filter((item) => recent(item.published, 3)).length,
       outagesActive: outages.filter((outage) => !outage.end).length,
     },
