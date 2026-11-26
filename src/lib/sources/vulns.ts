@@ -319,7 +319,8 @@ async function getCveRecordFetched(cveId: string): Promise<Fetched<Vuln | null>>
       return nvdLookup(cveId);
     }
   });
-  if (result.ok) cacheLife("lookup");
+  // A missing record may be published within the hour, so only a found one is kept for hours.
+  if (result.ok && result.value) cacheLife("lookup");
   else cacheLife("minutes");
   return result;
 }
